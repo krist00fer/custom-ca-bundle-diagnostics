@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source dependencies
 source "${SCRIPT_DIR}/config.sh"
+source "${SCRIPT_DIR}/output.sh"
 source "${SCRIPT_DIR}/../common/detect-os.sh"
 
 # Menu state
@@ -22,12 +23,13 @@ read_choice() {
     local choice=""
 
     while true; do
-        echo -n "$prompt [$min-$max]: "
+        # Output prompt to stderr so it doesn't get captured by command substitution
+        echo -n "$prompt [$min-$max]: " >&2
         read -r choice
 
         # Handle empty input
         if [[ -z "$choice" ]]; then
-            echo "Please enter a choice."
+            echo "Please enter a choice." >&2
             continue
         fi
 
@@ -39,13 +41,13 @@ read_choice() {
 
         # Validate numeric input
         if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
-            echo "Please enter a number."
+            echo "Please enter a number." >&2
             continue
         fi
 
         # Validate range
         if [[ "$choice" -lt "$min" || "$choice" -gt "$max" ]]; then
-            echo "Please enter a number between $min and $max."
+            echo "Please enter a number between $min and $max." >&2
             continue
         fi
 
@@ -64,7 +66,10 @@ confirm() {
         echo -n "$prompt [y/n]: "
         read -r response
 
-        case "${response,,}" in
+        # Convert to lowercase (bash 3.x compatible)
+        response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+
+        case "$response" in
             y|yes)
                 return 0
                 ;;
