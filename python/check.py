@@ -18,7 +18,7 @@ import time
 import os
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def get_ssl_info():
@@ -325,7 +325,7 @@ def main():
         "error_message": error_message,
         "error_code": 0 if success else 1,
         "duration_ms": duration_ms,
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "platform": {
             "os": platform.system().lower(),
             "arch": platform.machine(),

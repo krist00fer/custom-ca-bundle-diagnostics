@@ -169,13 +169,23 @@ check_python() {
     local version
     version=$(get_python_version "$python_cmd")
 
-    # Run the Python check
+    # Run the Python check (capture stdout and stderr separately)
     local result
-    result=$(run_python_check "$url" "$python_cmd" "$TIMEOUT" 2>&1) || true
+    result=$(run_python_check "$url" "$python_cmd" "$TIMEOUT" 2>/dev/null) || true
 
-    # Check if the result is valid JSON
-    if echo "$result" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
-        # Result is valid JSON from check.py, output directly
+    # If result is empty, try again capturing stderr for error info
+    if [[ -z "$result" ]]; then
+        result=$(run_python_check "$url" "$python_cmd" "$TIMEOUT" 2>&1) || true
+    fi
+
+    # Extract JSON from output (in case there are warnings before/after)
+    local json_result
+    json_result=$(echo "$result" | grep -E '^\{' | head -1)
+    if [[ -n "$json_result" ]] && echo "$json_result" | "$python_cmd" -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+        # Found valid JSON, output it
+        echo "$json_result"
+    elif echo "$result" | "$python_cmd" -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+        # Full result is valid JSON
         echo "$result"
     else
         # Something went wrong, create error result
