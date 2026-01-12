@@ -266,15 +266,51 @@ print(f'  CA Path: {paths.capath or \"not set\"}')
             echo "Status: SUCCESS"
             echo ""
 
+            # Show environment variables status for awareness
+            echo "Environment Variables:"
+            "$python_cmd" -c "
+import os
+
+GREEN = '\033[0;32m'
+YELLOW = '\033[0;33m'
+RESET = '\033[0m'
+
+env_vars = {
+    'SSL_CERT_FILE': os.environ.get('SSL_CERT_FILE'),
+    'SSL_CERT_DIR': os.environ.get('SSL_CERT_DIR'),
+    'REQUESTS_CA_BUNDLE': os.environ.get('REQUESTS_CA_BUNDLE'),
+    'CURL_CA_BUNDLE': os.environ.get('CURL_CA_BUNDLE')
+}
+
+for var, val in env_vars.items():
+    if val:
+        if os.path.exists(val):
+            print(f'  {var}: {GREEN}Set{RESET} ({val})')
+        else:
+            print(f'  {var}: {YELLOW}Set but invalid{RESET} ({val})')
+    else:
+        print(f'  {var}: Not set (using system defaults)')
+"
+            echo ""
+
             # Show detailed results
             echo "Results by method:"
             "$python_cmd" -c "
 import sys, json
+
+# Color codes
+GREEN = '\033[0;32m'
+RED = '\033[0;31m'
+RESET = '\033[0m'
+
 data = json.load(sys.stdin)
 details = data.get('details', {})
 for method in ['urllib_result', 'requests_result', 'ssl_socket_result']:
     r = details.get(method, {})
-    status = 'OK' if r.get('success') else 'FAIL'
+    if r.get('success'):
+        status = f'{GREEN}OK{RESET}'
+    else:
+        status = f'{RED}FAIL{RESET}'
     print(f'  {r.get(\"method\", method)}: {status}')
 " <<< "$result"
             return 0
@@ -282,14 +318,24 @@ for method in ['urllib_result', 'requests_result', 'ssl_socket_result']:
             echo "Status: FAILED"
             echo ""
             
-            # Show detailed results with error information
+            # Show detailed results with error information and colors
             echo "Results by method:"
             "$python_cmd" -c "
 import sys, json
+import os
+
+# Color codes
+GREEN = '\033[0;32m'
+RED = '\033[0;31m'
+YELLOW = '\033[0;33m'
+CYAN = '\033[0;36m'
+BOLD = '\033[1m'
+RESET = '\033[0m'
 
 data = json.load(sys.stdin)
 details = data.get('details', {})
 fixes = data.get('fixes', {})
+ssl_info = details.get('ssl_info', {})
 
 method_names = {
     'urllib': 'urllib (Python standard library)',
@@ -297,10 +343,22 @@ method_names = {
     'ssl_socket': 'ssl_socket (low-level SSL module)'
 }
 
+# Check environment variables
+env_vars_checked = {
+    'SSL_CERT_FILE': os.environ.get('SSL_CERT_FILE'),
+    'SSL_CERT_DIR': os.environ.get('SSL_CERT_DIR'),
+    'REQUESTS_CA_BUNDLE': os.environ.get('REQUESTS_CA_BUNDLE'),
+    'CURL_CA_BUNDLE': os.environ.get('CURL_CA_BUNDLE')
+}
+
 for method_key in ['urllib_result', 'requests_result', 'ssl_socket_result']:
     r = details.get(method_key, {})
     method = r.get('method', method_key.replace('_result', ''))
-    status = 'OK' if r.get('success') else 'FAIL'
+    
+    if r.get('success'):
+        status = f'{GREEN}OK{RESET}'
+    else:
+        status = f'{RED}FAIL{RESET}'
     
     print(f'  {method}: {status}')
     
@@ -311,25 +369,67 @@ for method_key in ['urllib_result', 'requests_result', 'ssl_socket_result']:
         
         # Show what this method is
         method_desc = method_names.get(method, method)
-        print(f'    What: {method_desc}')
+        print(f'    {BOLD}What:{RESET} {method_desc}')
         
         if error_type == 'runtime_missing':
-            print(f'    Why:  {error_msg}')
+            print(f'    {BOLD}Why:{RESET}  {error_msg}')
         elif error_type == 'ssl_error':
-            print(f'    Why:  SSL certificate verification failed')
-            print(f'    Details: {error_msg}')
+            print(f'    {BOLD}Why:{RESET}  {RED}SSL certificate verification failed{RESET}')
+            print(f'    {BOLD}Details:{RESET} {error_msg}')
+            print()
+            
+            # Show relevant environment variables for this method
+            print(f'    {BOLD}Environment Variables Status:{RESET}')
+            if method == 'requests':
+                relevant_vars = ['REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE']
+            else:
+                relevant_vars = ['SSL_CERT_FILE', 'SSL_CERT_DIR']
+            
+            for var in relevant_vars:
+                val = env_vars_checked.get(var)
+                if val:
+                    if os.path.exists(val):
+                        print(f'      {var}: {GREEN}Set{RESET} ({val})')
+                    else:
+                        print(f'      {var}: {YELLOW}Set but path does not exist{RESET} ({val})')
+                else:
+                    print(f'      {var}: {RED}Not set{RESET}')
+            print()
             
             # Show fix for this specific method
             if method in fixes:
                 fix = fixes[method]
-                print(f'    Fix:  {fix.get(\"description\", \"\")}')
+                print(f'    {BOLD}{CYAN}Action Required:{RESET}')
+                print(f'      {fix.get(\"description\", \"\")}')
+                print()
                 
                 env_vars = fix.get('env_vars', {})
                 if env_vars:
+                    print(f'      {BOLD}Set the following environment variable(s):{RESET}')
                     for var, val in env_vars.items():
-                        print(f'          export {var}=\"{val}\"')
+                        print(f'        {CYAN}export {var}=\"{val}\"{RESET}')
+        elif error_type == 'dns_error':
+            print(f'    {BOLD}Why:{RESET}  {YELLOW}DNS resolution failed - network/connectivity issue{RESET}')
+            print(f'    {BOLD}Details:{RESET} {error_msg}')
+            print()
+            print(f'    {BOLD}{CYAN}Action Required:{RESET}')
+            print(f'      This is not an SSL certificate issue.')
+            print(f'      Check your network connection and DNS settings.')
+        elif error_type == 'timeout':
+            print(f'    {BOLD}Why:{RESET}  {YELLOW}Connection timed out{RESET}')
+            print(f'    {BOLD}Details:{RESET} {error_msg}')
+            print()
+            print(f'    {BOLD}{CYAN}Action Required:{RESET}')
+            print(f'      This is not an SSL certificate issue.')
+            print(f'      The server may be slow or unreachable. Try increasing timeout.')
+        elif error_type == 'network_error':
+            print(f'    {BOLD}Why:{RESET}  {YELLOW}Network connection error{RESET}')
+            print(f'    {BOLD}Details:{RESET} {error_msg}')
+            print()
+            print(f'    {BOLD}{CYAN}Action Required:{RESET}')
+            print(f'      Check network connectivity and firewall settings.')
         else:
-            print(f'    Why:  {error_msg}')
+            print(f'    {BOLD}Why:{RESET}  {error_msg}')
         print()
 " <<< "$result"
             
