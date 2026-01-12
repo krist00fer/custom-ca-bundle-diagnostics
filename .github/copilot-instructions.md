@@ -46,7 +46,8 @@ Each supported language/tool has its own diagnostic module that:
 - Use `$(command)` not backticks for command substitution
 - Make scripts executable: `chmod +x script.sh`
 - Use `--no-pager` with git commands to avoid interactive output
-- Source common utilities using: `source "$(dirname "$0")/../common/utility.sh"`
+- Source common utilities using: `source "${PROJECT_ROOT}/common/detect-os.sh"`
+  - Set PROJECT_ROOT first: `PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"`
 
 ### Function Conventions
 - Use descriptive function names with underscores: `detect_ssl_error`, `extract_certificates`
@@ -123,15 +124,21 @@ just extract-certs https://example.com
 
 Each module can be tested independently:
 ```bash
-# Test curl module
+# Test curl module (no version parameter)
 bash curl/check.sh https://example.com --human
 
-# Test Python module
+# Test Python module (optional version parameter)
 bash python/check.sh https://example.com "" --human
+# Or with specific version
+bash python/check.sh https://example.com "python3.12" --human
 
-# Test .NET module (may require building)
+# Test .NET module (optional version parameter)
 bash dotnet/check.sh https://example.com "" --human
+# Or with specific version
+bash dotnet/check.sh https://example.com "8" --human
 ```
+
+**Note**: Python and .NET modules accept an optional second parameter for version. Use an empty string `""` to use the default version, or specify a version like `"python3.12"` or `"8"` for .NET.
 
 ### .NET Module Building
 
