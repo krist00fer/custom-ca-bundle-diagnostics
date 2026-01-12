@@ -268,6 +268,7 @@ print(f'  CA Path: {paths.capath or \"not set\"}')
 
             # Show environment variables status for awareness
             echo "Environment Variables:"
+            # Note: Color codes are defined inline for each Python block to keep each block self-contained
             "$python_cmd" -c "
 import os
 
@@ -287,7 +288,7 @@ for var, val in env_vars.items():
         if os.path.exists(val):
             print(f'  {var}: {GREEN}Set{RESET} ({val})')
         else:
-            print(f'  {var}: {YELLOW}Set but invalid{RESET} ({val})')
+            print(f'  {var}: {YELLOW}Set but path does not exist{RESET} ({val})')
     else:
         print(f'  {var}: Not set (using system defaults)')
 "
