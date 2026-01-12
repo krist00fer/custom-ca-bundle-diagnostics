@@ -326,7 +326,6 @@ for method_key in ['urllib_result', 'requests_result', 'ssl_socket_result']:
                 
                 env_vars = fix.get('env_vars', {})
                 if env_vars:
-                    print(f'    ')
                     for var, val in env_vars.items():
                         print(f'          export {var}=\"{val}\"')
         else:
