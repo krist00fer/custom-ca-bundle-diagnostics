@@ -303,17 +303,43 @@ def main():
     requests_result = check_with_requests(url, timeout)
     ssl_result = check_with_ssl_socket(url, timeout)
 
-    # Determine overall success (use urllib as primary)
+    # Determine overall success - ALL methods must succeed (or be unavailable)
+    # If any method fails with an SSL error, overall status is FAILED
+    all_results = [urllib_result, requests_result, ssl_result]
+    
+    # Filter out runtime_missing errors (library not installed)
+    testable_results = [r for r in all_results if r["error_type"] != "runtime_missing"]
+    
+    # Success only if:
+    # 1. We have at least one testable method, AND
+    # 2. All testable methods succeeded
+    success = len(testable_results) > 0 and all(r["success"] for r in testable_results)
+    
+    # Determine primary error from the first failing method
     primary_result = urllib_result
-    success = primary_result["success"]
+    failed_results = [r for r in testable_results if not r["success"]]
+    
+    if failed_results:
+        primary_result = failed_results[0]  # Use first failure as primary
+    elif not testable_results:
+        # All methods had runtime_missing - use urllib as primary
+        primary_result = urllib_result
+    
     error_type = primary_result["error_type"]
     error_message = primary_result["error_message"]
     duration_ms = primary_result["duration_ms"]
 
-    # Generate fix if needed
-    fix = None
-    if not success and error_type == "ssl_error":
-        fix = generate_fix_suggestion(error_type, "urllib")
+    # Generate fixes for each failed method
+    fixes = {}
+    for result in all_results:
+        method = result["method"]
+        if not result["success"] and result["error_type"] == "ssl_error":
+            fix_suggestion = generate_fix_suggestion(result["error_type"], method)
+            if fix_suggestion:
+                fixes[method] = fix_suggestion
+    
+    # Use the first fix as the primary one for backward compatibility
+    fix = fixes.get("urllib") or fixes.get("requests") or fixes.get("ssl_socket") or None
 
     # Build output
     output = {
@@ -333,6 +359,7 @@ def main():
             "is_wsl": "microsoft" in platform.release().lower(),
         },
         "fix": fix,
+        "fixes": fixes,  # Include all method-specific fixes
         "details": {
             "ssl_info": get_ssl_info(),
             "urllib_result": urllib_result,
