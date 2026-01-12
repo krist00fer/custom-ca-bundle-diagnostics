@@ -242,3 +242,4 @@ When updating features:
 2. Update `README.md` if user-facing changes
 3. Update `CLAUDE.md` if architecture changes
 4. Keep this file updated with new conventions or patterns
+
