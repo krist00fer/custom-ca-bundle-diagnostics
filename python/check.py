@@ -310,8 +310,10 @@ def main():
     # Filter out runtime_missing errors (library not installed)
     testable_results = [r for r in all_results if r["error_type"] != "runtime_missing"]
     
-    # Success only if all testable methods succeeded
-    success = all(r["success"] for r in testable_results)
+    # Success only if:
+    # 1. We have at least one testable method, AND
+    # 2. All testable methods succeeded
+    success = len(testable_results) > 0 and all(r["success"] for r in testable_results)
     
     # Determine primary error from the first failing method
     primary_result = urllib_result
@@ -319,6 +321,9 @@ def main():
     
     if failed_results:
         primary_result = failed_results[0]  # Use first failure as primary
+    elif not testable_results:
+        # All methods had runtime_missing - use urllib as primary
+        primary_result = urllib_result
     
     error_type = primary_result["error_type"]
     error_message = primary_result["error_message"]
