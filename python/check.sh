@@ -280,24 +280,63 @@ for method in ['urllib_result', 'requests_result', 'ssl_socket_result']:
             return 0
         else
             echo "Status: FAILED"
-            echo "Error Type: $error_type"
-            echo "Error: $error_message"
             echo ""
+            
+            # Show detailed results with error information
+            echo "Results by method:"
+            "$python_cmd" -c "
+import sys, json
 
-            # Show fix suggestions
-            local ca_bundle
-            ca_bundle=$(find_system_ca_bundle 2>/dev/null || echo "")
+data = json.load(sys.stdin)
+details = data.get('details', {})
+fixes = data.get('fixes', {})
 
-            echo "Suggested fix:"
-            if [[ -n "$ca_bundle" ]]; then
-                echo "  export SSL_CERT_FILE=\"$ca_bundle\""
-                echo "  export REQUESTS_CA_BUNDLE=\"$ca_bundle\""
-            else
-                echo "  # No system CA bundle found"
-                echo "  # Obtain your corporate CA certificate and set:"
-                echo "  export SSL_CERT_FILE=/path/to/ca-bundle.crt"
-                echo "  export REQUESTS_CA_BUNDLE=/path/to/ca-bundle.crt"
-            fi
+method_names = {
+    'urllib': 'urllib (Python standard library)',
+    'requests': 'requests (third-party HTTP library)',
+    'ssl_socket': 'ssl_socket (low-level SSL module)'
+}
+
+for method_key in ['urllib_result', 'requests_result', 'ssl_socket_result']:
+    r = details.get(method_key, {})
+    method = r.get('method', method_key.replace('_result', ''))
+    status = 'OK' if r.get('success') else 'FAIL'
+    
+    print(f'  {method}: {status}')
+    
+    # If failed, show error details
+    if not r.get('success'):
+        error_type = r.get('error_type', 'unknown')
+        error_msg = r.get('error_message', 'No error message')
+        
+        # Show what this method is
+        method_desc = method_names.get(method, method)
+        print(f'    What: {method_desc}')
+        
+        if error_type == 'runtime_missing':
+            print(f'    Why:  {error_msg}')
+        elif error_type == 'ssl_error':
+            print(f'    Why:  SSL certificate verification failed')
+            print(f'    Details: {error_msg}')
+            
+            # Show fix for this specific method
+            if method in fixes:
+                fix = fixes[method]
+                print(f'    Fix:  {fix.get(\"description\", \"\")}')
+                
+                env_vars = fix.get('env_vars', {})
+                if env_vars:
+                    print(f'    ')
+                    for var, val in env_vars.items():
+                        print(f'          export {var}=\"{val}\"')
+        else:
+            print(f'    Why:  {error_msg}')
+        print()
+" <<< "$result"
+            
+            echo ""
+            echo "Overall error: $error_type"
+            echo "Message: $error_message"
             return 1
         fi
     else
